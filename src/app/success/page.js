@@ -2,8 +2,6 @@ import Stripe from "stripe";
 import ClearCart from "@/components/ClearCart";
 import ActionButtons from "@/components/ActionButtons";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 export const metadata = {
   title: "Order confirmed",
   robots: {
@@ -15,25 +13,87 @@ export const metadata = {
 export default async function SuccessPage({ searchParams }) {
   const { session_id } = await searchParams;
 
-  if (!session_id) {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+  // Stripe er valgfritt i Kodera-templaten
+  if (!stripeSecretKey) {
     return (
       <main className="min-h-screen px-6 py-20">
         <div className="mx-auto max-w-2xl">
-          <h1 className="text-3xl font-bold">No order found</h1>
+          <h1 className="text-3xl font-bold">Checkout is not available</h1>
+
+          <p className="mt-4 text-gray-600">
+            Payments are not configured for this website.
+          </p>
+
+          <ActionButtons />
         </div>
       </main>
     );
   }
 
-  const session = await stripe.checkout.sessions.retrieve(session_id, {
-    expand: ["line_items"],
-  });
+  if (!session_id) {
+    return (
+      <main className="min-h-screen px-6 py-20">
+        <div className="mx-auto max-w-2xl">
+          <h1 className="text-3xl font-bold">No order found</h1>
+
+          <ActionButtons />
+        </div>
+      </main>
+    );
+  }
+
+  const stripe = new Stripe(stripeSecretKey);
+
+  let session;
+
+  try {
+    session = await stripe.checkout.sessions.retrieve(session_id, {
+      expand: ["line_items"],
+    });
+  } catch (error) {
+    console.error("Could not retrieve Stripe session:", error.message);
+
+    return (
+      <main className="min-h-screen px-6 py-20">
+        <div className="mx-auto max-w-2xl">
+          <h1 className="text-3xl font-bold">Order could not be verified</h1>
+
+          <p className="mt-4 text-gray-600">
+            We could not retrieve your order details. Please contact the store
+            if you have been charged.
+          </p>
+
+          <ActionButtons />
+        </div>
+      </main>
+    );
+  }
+
+  // Ikke vis ordren som betalt før Stripe bekrefter det
+  if (session.payment_status !== "paid") {
+    return (
+      <main className="min-h-screen px-6 py-20">
+        <div className="mx-auto max-w-2xl">
+          <h1 className="text-3xl font-bold">Payment not confirmed</h1>
+
+          <p className="mt-4 text-gray-600">
+            Your payment has not been confirmed yet.
+          </p>
+
+          <ActionButtons />
+        </div>
+      </main>
+    );
+  }
 
   const items = session.line_items?.data ?? [];
 
   return (
     <main className="min-h-screen px-6 py-20">
       <ClearCart />
+
       <div className="mx-auto max-w-2xl">
         <h1 className="text-3xl font-bold">Thank you for your order!</h1>
 
@@ -47,6 +107,7 @@ export default async function SuccessPage({ searchParams }) {
             >
               <div>
                 <p className="font-medium">{item.description}</p>
+
                 <p className="text-sm text-gray-500">
                   Quantity: {item.quantity}
                 </p>
@@ -66,6 +127,7 @@ export default async function SuccessPage({ searchParams }) {
             {(session.amount_total / 100).toFixed(2)} kr
           </p>
         </div>
+
         <ActionButtons />
       </div>
     </main>
