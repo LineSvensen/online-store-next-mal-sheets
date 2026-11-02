@@ -16,17 +16,49 @@ export async function POST(request) {
 
   try {
     // Initialiser Stripe først når checkout brukes
+
+    const baseUrl = process.env.SITE_URL;
+    if (!baseUrl) {
+      throw new Error("SITE_URL is not configured");
+    }
+
     const stripe = new Stripe(stripeSecretKey);
 
     const { items } = await request.json();
 
-    const products = getProducts();
+    if (!Array.isArray(items) || items.length === 0) {
+      return Response.json(
+        { error: "Cart is empty or invalid" },
+        { status: 400 },
+      );
+    }
+
+    const products = await getProducts();
 
     const lineItems = items.map((cartItem) => {
-      const product = products.find((product) => product.id === cartItem.id);
+      const product = products.find(
+        (product) => product.id === Number(cartItem.id),
+      );
 
       if (!product) {
         throw new Error("Product not found");
+      }
+      if (product.tilgjengelig === false) {
+        throw new Error("Product is not available");
+      }
+
+      const amount = Math.round(product.price * 100);
+
+      if (!Number.isSafeInteger(amount) || amount <= 0) {
+        throw new Error("Invalid product price");
+      }
+
+      if (
+        !Number.isInteger(cartItem.quantity) ||
+        cartItem.quantity < 1 ||
+        cartItem.quantity > 99
+      ) {
+        throw new Error("Invalid quantity");
       }
 
       return {
@@ -37,7 +69,7 @@ export async function POST(request) {
             name: product.name,
           },
 
-          unit_amount: product.price * 100,
+          unit_amount: amount,
         },
 
         quantity: cartItem.quantity,
@@ -53,11 +85,8 @@ export async function POST(request) {
         allowed_countries: ["NO"],
       },
 
-      success_url: `${request.headers.get(
-        "origin",
-      )}/success?session_id={CHECKOUT_SESSION_ID}`,
-
-      cancel_url: `${request.headers.get("origin")}/cart`,
+      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/cart`,
     });
 
     return Response.json({

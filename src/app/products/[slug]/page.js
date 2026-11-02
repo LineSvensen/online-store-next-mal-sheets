@@ -2,9 +2,11 @@ import { getProductBySlug } from "@/lib/products";
 import { notFound } from "next/navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
 
   return {
     title: product?.name ?? "Product",
@@ -12,11 +14,11 @@ export async function generateMetadata({ params }) {
   };
 }
 
-//single product page
+// Single product page
 
 export default async function ProductPage({ params }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     notFound();
@@ -24,7 +26,7 @@ export default async function ProductPage({ params }) {
 
   return (
     <main className="min-h-screen px-6 py-8">
-      <div className="flex flex-col gap-4 px-4 mb-4">
+      <div className="mb-4 flex flex-col gap-4 px-4">
         <Breadcrumbs
           items={[
             {

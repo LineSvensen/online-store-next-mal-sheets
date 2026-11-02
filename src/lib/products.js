@@ -1,11 +1,24 @@
 // hva vi gjør med data/logic
 
-import products from "@/data/products.json";
+import "server-only";
+import { getSheetData } from "@/lib/google-sheets";
 
-export function getProducts() {
-  return products;
+export async function getProducts() {
+  const rows = await getSheetData("Produkter");
+
+  return rows.map((product) => ({
+    ...product,
+    id: Number(product.id),
+    price: Number(product.price),
+    tilgjengelig:
+      product.tilgjengelig === undefined
+        ? true
+        : String(product.tilgjengelig).toUpperCase() === "TRUE",
+  }));
 }
 
-export function getProductBySlug(slug) {
+export async function getProductBySlug(slug) {
+  const products = await getProducts();
+
   return products.find((product) => product.slug === slug);
 }

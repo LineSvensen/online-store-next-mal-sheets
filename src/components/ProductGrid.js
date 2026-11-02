@@ -1,10 +1,8 @@
-// components/ProductGrid.js
-
 import ProductCard from "@/components/ProductCard";
 import { getProducts } from "@/lib/products";
 
-export default function ProductGrid() {
-  const products = getProducts();
+export default async function ProductGrid() {
+  const products = await getProducts();
 
   return (
     <section className="flex justify-center items-center mx-auto max-w-7xl px-6 py-16">

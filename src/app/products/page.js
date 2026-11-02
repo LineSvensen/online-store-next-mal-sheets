@@ -1,10 +1,10 @@
-// all products page
-
 import { getProducts } from "@/lib/products";
 import ProductCard from "@/components/ProductCard";
 
-export default function ProductsPage() {
-  const products = getProducts();
+export const dynamic = "force-dynamic";
+
+export default async function ProductsPage() {
+  const products = await getProducts();
 
   return (
     <main className="min-h-screen px-6 py-12">
