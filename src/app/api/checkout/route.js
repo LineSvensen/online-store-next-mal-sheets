@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { getProducts } from "@/lib/products";
+import { getFreshProducts } from "@/lib/products";
 
 export const runtime = "nodejs";
 
@@ -15,70 +15,89 @@ export async function POST(request) {
   }
 
   try {
-    // Initialiser Stripe først når checkout brukes
-
     const baseUrl = process.env.SITE_URL;
+
     if (!baseUrl) {
       throw new Error("SITE_URL is not configured");
     }
 
-    const stripe = new Stripe(stripeSecretKey);
-
     const { items } = await request.json();
 
-    if (!Array.isArray(items) || items.length === 0) {
+    // Kontroller handlekurven
+    if (!Array.isArray(items) || items.length === 0 || items.length > 100) {
       return Response.json(
         { error: "Cart is empty or invalid" },
         { status: 400 },
       );
     }
 
-    const products = await getProducts();
+    // Hent FERSKE produkter direkte fra Google Sheets
+    const products = await getFreshProducts();
 
-    const lineItems = items.map((cartItem) => {
-      const product = products.find(
-        (product) => product.id === Number(cartItem.id),
-      );
+    const usedIds = new Set();
+    const lineItems = [];
 
-      if (!product) {
-        throw new Error("Product not found");
-      }
-      if (product.tilgjengelig === false) {
-        throw new Error("Product is not available");
-      }
-
-      const amount = Math.round(product.price * 100);
-
-      if (!Number.isSafeInteger(amount) || amount <= 0) {
-        throw new Error("Invalid product price");
-      }
+    for (const cartItem of items) {
+      const id = Number(cartItem?.id);
+      const quantity = cartItem?.quantity;
 
       if (
-        !Number.isInteger(cartItem.quantity) ||
-        cartItem.quantity < 1 ||
-        cartItem.quantity > 99
+        !Number.isSafeInteger(id) ||
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 99 ||
+        usedIds.has(id)
       ) {
-        throw new Error("Invalid quantity");
+        return Response.json({ error: "Invalid cart item" }, { status: 400 });
       }
 
-      return {
+      usedIds.add(id);
+
+      const product = products.find((product) => product.id === id);
+
+      if (!product || product.tilgjengelig !== true) {
+        return Response.json(
+          {
+            error: "A product is no longer available. Please update your cart.",
+          },
+          { status: 409 },
+        );
+      }
+
+      // Kontroller produktpris
+      const amount = Math.round(product.price * 100);
+
+      if (
+        !Number.isFinite(product.price) ||
+        product.price <= 0 ||
+        !Number.isSafeInteger(amount) ||
+        Math.abs(product.price * 100 - amount) > 0.000001
+      ) {
+        console.error("Invalid Sheets price for product:", id);
+
+        return Response.json(
+          { error: "A product has an invalid price" },
+          { status: 422 },
+        );
+      }
+
+      lineItems.push({
         price_data: {
           currency: "nok",
-
           product_data: {
             name: product.name,
           },
-
           unit_amount: amount,
         },
+        quantity,
+      });
+    }
 
-        quantity: cartItem.quantity,
-      };
-    });
+    // Opprett Stripe først etter valideringen
+    const stripe = new Stripe(stripeSecretKey);
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-
       line_items: lineItems,
 
       shipping_address_collection: {

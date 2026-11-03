@@ -1,5 +1,6 @@
 import { getProductBySlug } from "@/lib/products";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import Breadcrumbs from "@/components/Breadcrumbs";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,21 @@ export default async function ProductPage({ params }) {
 
       <div className="mx-auto max-w-4xl">
         <div className="grid gap-10 md:grid-cols-2">
-          <div className="aspect-square bg-gray-100" />
+          <div className="relative aspect-square overflow-hidden bg-gray-100">
+            {product.image?.trim() ? (
+              <Image
+                src={product.image}
+                alt={product.name || "Produktbilde"}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 50vw"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-gray-500">
+                Bilde kommer snart
+              </div>
+            )}
+          </div>
 
           <div>
             <h1 className="text-3xl font-bold">{product.name}</h1>

@@ -96,7 +96,7 @@ export default function Footer() {
             {/* Kodera credit */}
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <span className="flex flex-row justify-center gap-2 items-center">
-                Kodet med ❤️ av kvinner i
+                Kodet med ❤ av kvinner i
                 <a
                   href="https://kodera.no"
                   target="_blank"
@@ -109,7 +109,7 @@ export default function Footer() {
                     alt="Kodera"
                     width={70}
                     height={24}
-                    className="h-auto w-auto max-h-6"
+                    className="w-[44px] h-auto"
                   />
                 </a>
               </span>

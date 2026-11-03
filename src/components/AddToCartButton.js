@@ -1,24 +1,33 @@
 "use client";
 
-//add to cart button , frontend snakker med backend
-
 import { useCartStore } from "@/store/cartStore";
 
 export default function AddToCartButton({ product }) {
   const addItem = useCartStore((state) => state.addItem);
 
-  function handleAddToCart() {
-    addItem(product);
+  const isAvailable = product.tilgjengelig !== false;
 
-    console.log("Cart now:", useCartStore.getState().items);
+  function handleAddToCart() {
+    if (!isAvailable) return;
+
+    addItem(product);
   }
 
   return (
     <button
+      type="button"
       onClick={handleAddToCart}
-      className="mt-8 bg-black px-6 py-3 text-white cursor-pointer"
+      disabled={!isAvailable}
+      className={`
+        mt-8 px-6 py-3 transition-colors
+        ${
+          isAvailable
+            ? "bg-black text-white cursor-pointer hover:bg-gray-800"
+            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+        }
+      `}
     >
-      Add to cart
+      {isAvailable ? "Add to cart" : "Out of stock"}
     </button>
   );
 }
