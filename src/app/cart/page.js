@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import CartItem from "@/components/CartItem";
 import Loader from "@/components/Loader";
 import { useCartStore } from "@/store/cartStore";
+import { useProductStatusStore } from "@/store/productStatusStore";
 
 export default function CartPage() {
   const items = useCartStore((state) => state.items);
@@ -18,6 +19,14 @@ export default function CartPage() {
 
   // Endres når produkter legges til eller fjernes
   const cartIds = items.map((item) => item.id).join(",");
+
+  const setProductStatuses = useProductStatusStore(
+    (state) => state.setStatuses,
+  );
+
+  const markProductStatusesUnknown = useProductStatusStore(
+    (state) => state.markUnknown,
+  );
 
   const validateCart = useCallback(async (cartItems) => {
     const response = await fetch("/api/cart/validate", {
@@ -47,6 +56,8 @@ export default function CartPage() {
     async function check() {
       if (items.length === 0) {
         setValidated([]);
+        setIsChecking(false);
+        setError("");
         return;
       }
 
@@ -56,13 +67,21 @@ export default function CartPage() {
 
       try {
         const result = await validateCart(items);
-        if (active) setValidated(result);
+
+        if (active) {
+          setValidated(result);
+          setProductStatuses(result);
+        }
       } catch {
         if (active) {
+          markProductStatusesUnknown(items.map((item) => item.id));
+
           setError("Could not check product availability.");
         }
       } finally {
-        if (active) setIsChecking(false);
+        if (active) {
+          setIsChecking(false);
+        }
       }
     }
 
@@ -84,7 +103,13 @@ export default function CartPage() {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("pageshow", handlePageShow);
     };
-  }, [hasHydrated, cartIds, validateCart]);
+  }, [
+    hasHydrated,
+    cartIds,
+    validateCart,
+    setProductStatuses,
+    markProductStatusesUnknown,
+  ]);
 
   const checkedItems = items.map((item) => {
     const current = validated?.find(
@@ -125,6 +150,7 @@ export default function CartPage() {
       // Kontroller én gang til rett før betaling
       const latest = await validateCart(items);
       setValidated(latest);
+      setProductStatuses(latest);
 
       if (latest.some((product) => !product.available)) {
         setError(
