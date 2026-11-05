@@ -4,12 +4,15 @@ import { getFreshProducts } from "@/lib/products";
 export const runtime = "nodejs";
 
 export async function POST(request) {
-  // Stripe er valgfritt i Kodera-templaten
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!stripeSecretKey) {
+  // Stripe must be explicitly enabled.
+  const stripeEnabled = process.env.STRIPE_CHECKOUT_ENABLED === "true";
+
+  if (!stripeEnabled || !stripeSecretKey || !webhookSecret) {
     return Response.json(
-      { error: "Stripe is not configured" },
+      { error: "Checkout is not configured" },
       { status: 503 },
     );
   }
@@ -23,7 +26,6 @@ export async function POST(request) {
 
     const { items } = await request.json();
 
-    // Kontroller handlekurven
     if (!Array.isArray(items) || items.length === 0 || items.length > 100) {
       return Response.json(
         { error: "Cart is empty or invalid" },
@@ -31,18 +33,26 @@ export async function POST(request) {
       );
     }
 
-    // Hent FERSKE produkter direkte fra Google Sheets
+    // Always use fresh, validated Google Sheets data.
     const products = await getFreshProducts();
+
+    const productMap = new Map(
+      products.map((product) => [product.id, product]),
+    );
 
     const usedIds = new Set();
     const lineItems = [];
 
+    let orderTotal = 0;
+    let totalQuantity = 0;
+
     for (const cartItem of items) {
-      const id = Number(cartItem?.id);
+      const id = cartItem?.id;
       const quantity = cartItem?.quantity;
 
       if (
         !Number.isSafeInteger(id) ||
+        id <= 0 ||
         !Number.isInteger(quantity) ||
         quantity < 1 ||
         quantity > 99 ||
@@ -53,7 +63,7 @@ export async function POST(request) {
 
       usedIds.add(id);
 
-      const product = products.find((product) => product.id === id);
+      const product = productMap.get(id);
 
       if (!product || product.tilgjengelig !== true) {
         return Response.json(
@@ -64,7 +74,7 @@ export async function POST(request) {
         );
       }
 
-      // Kontroller produktpris
+      // Price comes from Google Sheets, never the browser.
       const amount = Math.round(product.price * 100);
 
       if (
@@ -73,11 +83,19 @@ export async function POST(request) {
         !Number.isSafeInteger(amount) ||
         Math.abs(product.price * 100 - amount) > 0.000001
       ) {
-        console.error("Invalid Sheets price for product:", id);
-
         return Response.json(
           { error: "A product has an invalid price" },
           { status: 422 },
+        );
+      }
+
+      orderTotal += amount * quantity;
+      totalQuantity += quantity;
+
+      if (!Number.isSafeInteger(orderTotal) || totalQuantity > 100) {
+        return Response.json(
+          { error: "Cart exceeds allowed limits" },
+          { status: 400 },
         );
       }
 
@@ -86,6 +104,12 @@ export async function POST(request) {
           currency: "nok",
           product_data: {
             name: product.name,
+
+            // Reference back to Google Sheets.
+            metadata: {
+              product_id: String(product.id),
+              product_slug: product.slug,
+            },
           },
           unit_amount: amount,
         },
@@ -93,24 +117,30 @@ export async function POST(request) {
       });
     }
 
-    // Opprett Stripe først etter valideringen
     const stripe = new Stripe(stripeSecretKey);
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: lineItems,
 
+      // Identifies which CMS created the checkout.
+      metadata: {
+        cms: "google_sheets",
+      },
+
       shipping_address_collection: {
         allowed_countries: ["NO"],
       },
 
       success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+
       cancel_url: `${baseUrl}/cart`,
     });
 
-    return Response.json({
-      url: session.url,
-    });
+    return Response.json(
+      { url: session.url },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     console.error("Stripe checkout error:", error);
 
