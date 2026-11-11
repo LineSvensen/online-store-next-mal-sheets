@@ -1,4 +1,4 @@
-import { getFreshProducts } from "@/lib/products";
+import { getProducts } from "@/lib/products";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +23,8 @@ export async function GET(request) {
   }
 
   try {
-    // Fresh data with the same validation as the store.
-    const products = await getFreshProducts();
+    // bruker cache og kan hente oppdaterte data når cachen er utløpt. 	Cachet i 60 sekunder
+    const products = await getProducts();
 
     // Explicitly allow public fields only.
     const publicProducts = products.map((product) => ({

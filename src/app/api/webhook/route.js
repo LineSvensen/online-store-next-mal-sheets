@@ -43,7 +43,13 @@ export async function POST(request) {
     });
   }
 
-  if (event.type === "checkout.session.completed") {
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
+    if (session.payment_status !== "paid") {
+      return Response.json({ received: true });
+    }
     const session = event.data.object;
 
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
@@ -70,7 +76,10 @@ export async function POST(request) {
       createdAt: new Date().toISOString(),
     };
 
-    console.log("✅ New order:", order);
+    console.log("✅ Stripe order received:", {
+      sessionId: session.id,
+      paymentStatus: session.payment_status,
+    });
 
     // TODO: Lagre ordren i database
     // TODO: Oppdater lagerbeholdning

@@ -74,6 +74,16 @@ export async function POST(request) {
         );
       }
 
+      // Check stock quantity against fresh Google Sheets data.
+      if (product.lager !== null && quantity > product.lager) {
+        return Response.json(
+          {
+            error: "Not enough stock available. Please update your cart.",
+          },
+          { status: 409 },
+        );
+      }
+
       // Price comes from Google Sheets, never the browser.
       const amount = Math.round(product.price * 100);
 

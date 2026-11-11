@@ -27,6 +27,13 @@ export function validateProducts(rows) {
       .trim()
       .toUpperCase();
 
+    const lagerText = String(row.lager ?? "").trim();
+
+    const lager = lagerText === "" ? null : Number(lagerText);
+
+    const validLager =
+      lager === null || (Number.isSafeInteger(lager) && lager >= 0);
+
     const errors = [];
 
     if (!Number.isSafeInteger(id) || id <= 0) {
@@ -72,6 +79,10 @@ export function validateProducts(rows) {
       );
     }
 
+    if (!validLager) {
+      errors.push("Invalid stock quantity");
+    }
+
     if (errors.length > 0) {
       console.warn(`Google Sheets row ${rowNumber}: ${errors.join(", ")}`);
 
@@ -89,7 +100,8 @@ export function validateProducts(rows) {
       description,
       price: amountInOre / 100,
       image,
-      tilgjengelig: availability === "TRUE",
+      tilgjengelig: availability === "TRUE" && (lager === null || lager > 0),
+      lager,
       kategori: String(row.kategori ?? "").trim(),
     });
   });
