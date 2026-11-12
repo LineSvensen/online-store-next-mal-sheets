@@ -4,13 +4,18 @@ import { useCartStore } from "@/store/cartStore";
 
 export default function CartItem({ item }) {
   const increaseQuantity = useCartStore((state) => state.increaseQuantity);
-
   const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
-
   const removeItem = useCartStore((state) => state.removeItem);
 
   // Tilgjengelighet kontrollert mot Google Sheets
   const isAvailable = item.current?.available === true;
+
+  // Maksimalt antall basert på lager, ellers 99.
+  const maxQuantity = Number.isSafeInteger(item.current?.lager)
+    ? Math.min(item.current.lager, 99)
+    : 99;
+
+  const canIncrease = isAvailable && item.quantity < maxQuantity;
 
   return (
     <div className="flex items-center justify-between border-b border-gray-200 pb-4">
@@ -24,7 +29,13 @@ export default function CartItem({ item }) {
           <button
             type="button"
             onClick={() => decreaseQuantity(item.id)}
-            className="cursor-pointer border px-3 py-1"
+            disabled={item.quantity <= 1}
+            className="
+              border px-3 py-1
+              enabled:cursor-pointer
+              disabled:cursor-not-allowed
+              disabled:opacity-40
+            "
             aria-label={`Reduce quantity of ${item.name}`}
           >
             -
@@ -32,11 +43,15 @@ export default function CartItem({ item }) {
 
           <span>{item.quantity}</span>
 
-          {/* Øk antall – kun hvis tilgjengelig */}
+          {/* Øk antall – kun hvis tilgjengelig og innenfor lager */}
           <button
             type="button"
-            onClick={() => increaseQuantity(item.id)}
-            disabled={!isAvailable || item.quantity >= 99}
+            onClick={() => {
+              if (canIncrease) {
+                increaseQuantity(item.id, maxQuantity);
+              }
+            }}
+            disabled={!canIncrease}
             className="
               border px-3 py-1
               enabled:cursor-pointer

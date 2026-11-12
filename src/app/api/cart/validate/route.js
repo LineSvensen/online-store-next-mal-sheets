@@ -27,6 +27,7 @@ export async function POST(request) {
         return {
           id,
           available: false,
+          lager: null,
           reason: "Product no longer exists or is invalid",
         };
       }
@@ -36,6 +37,7 @@ export async function POST(request) {
         name: product.name,
         price: product.price,
         available: product.tilgjengelig === true,
+        lager: product.lager,
       };
     });
 

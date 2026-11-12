@@ -169,6 +169,7 @@ export default function CartClient({ checkoutEnabled }) {
   ]);
 
   // Beregn handlekurven med serverbekreftede priser.
+
   const checkedItems = items.map((item) => {
     const current = validated?.find(
       (product) => Number(product.id) === Number(item.id),
@@ -180,10 +181,16 @@ export default function CartClient({ checkoutEnabled }) {
       unavailable: !current?.available,
       priceChanged:
         current?.available === true && Number(item.price) !== current.price,
+      stockExceeded:
+        current?.available === true &&
+        Number.isSafeInteger(current.lager) &&
+        item.quantity > current.lager,
     };
   });
 
   const hasUnavailable = checkedItems.some((item) => item.unavailable);
+
+  const hasStockExceeded = checkedItems.some((item) => item.stockExceeded);
 
   const total = checkedItems.reduce((sum, item) => {
     if (!item.current?.available) return sum;
@@ -199,6 +206,7 @@ export default function CartClient({ checkoutEnabled }) {
       isChecking ||
       !validated ||
       hasUnavailable ||
+      hasStockExceeded ||
       items.length === 0
     ) {
       return;
@@ -228,6 +236,21 @@ export default function CartClient({ checkoutEnabled }) {
         setError(
           "Some products are no longer available. Please update your cart.",
         );
+        return;
+      }
+
+      const exceedsStock = checkoutItems.some((item) => {
+        const product = latest.find((current) => current.id === item.id);
+
+        return (
+          product &&
+          Number.isSafeInteger(product.lager) &&
+          item.quantity > product.lager
+        );
+      });
+
+      if (exceedsStock) {
+        setError("Not enough stock available. Please reduce the quantity.");
         return;
       }
 
@@ -320,6 +343,12 @@ export default function CartClient({ checkoutEnabled }) {
                       : item.price,
                   }}
                 />
+                {validated && item.stockExceeded && (
+                  <p role="alert" className="mt-2 text-sm text-red-600">
+                    Only {item.current.lager} available. Please reduce the
+                    quantity.
+                  </p>
+                )}
 
                 {validated && item.unavailable && (
                   <div className="mt-2 rounded bg-red-50 p-3">
@@ -364,7 +393,11 @@ export default function CartClient({ checkoutEnabled }) {
                 type="button"
                 onClick={handleCheckout}
                 disabled={
-                  isLoading || isChecking || !validated || hasUnavailable
+                  isLoading ||
+                  isChecking ||
+                  !validated ||
+                  hasUnavailable ||
+                  hasStockExceeded
                 }
                 className="mt-6 flex min-h-[48px] w-full cursor-pointer items-center justify-center bg-black px-6 py-3 font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -372,6 +405,8 @@ export default function CartClient({ checkoutEnabled }) {
                   <Loader />
                 ) : hasUnavailable && validated ? (
                   "Remove unavailable products"
+                ) : hasStockExceeded ? (
+                  "Reduce quantity to continue"
                 ) : (
                   "Go to checkout"
                 )}
